@@ -65,7 +65,7 @@ namespace STDEXEC::__stok
                                                     __execute_fn_t*             __execute) noexcept
       : __source_(__source)
       , __execute_(__execute)
-    {}
+    { }
 
     constexpr void __register_callback_() noexcept;
 
@@ -107,6 +107,8 @@ namespace STDEXEC::__stok
 }  // namespace STDEXEC::__stok
 
 STDEXEC_P2300_NAMESPACE_BEGIN()
+  template <class _Stoppable>
+  class __inplace_stoppable_base;
   template <class _Callback>
   class inplace_stop_callback;
 
@@ -130,6 +132,8 @@ STDEXEC_P2300_NAMESPACE_BEGIN()
    private:
     friend inplace_stop_token;
     friend struct STDEXEC::__stok::__inplace_stop_callback_base;
+    template <class>
+    friend class __inplace_stoppable_base;
     template <class>
     friend class inplace_stop_callback;
 
@@ -159,13 +163,13 @@ STDEXEC_P2300_NAMESPACE_BEGIN()
 
     constexpr inplace_stop_token() noexcept
       : __source_(nullptr)
-    {}
+    { }
 
     constexpr inplace_stop_token(inplace_stop_token const & __other) noexcept = default;
 
     constexpr inplace_stop_token(inplace_stop_token&& __other) noexcept
       : __source_(std::exchange(__other.__source_, {}))
-    {}
+    { }
 
     constexpr auto
     operator=(inplace_stop_token const & __other) noexcept -> inplace_stop_token& = default;
@@ -198,11 +202,13 @@ STDEXEC_P2300_NAMESPACE_BEGIN()
    private:
     friend inplace_stop_source;
     template <class>
+    friend class __inplace_stoppable_base;
+    template <class>
     friend class inplace_stop_callback;
 
     constexpr explicit inplace_stop_token(inplace_stop_source const * __source) noexcept
       : __source_(__source)
-    {}
+    { }
 
     inplace_stop_source const * __source_;
   };
@@ -211,6 +217,50 @@ STDEXEC_P2300_NAMESPACE_BEGIN()
   {
     return inplace_stop_token{this};
   }
+
+  template <class _Stoppable>
+  class __inplace_stoppable_base : STDEXEC::__stok::__inplace_stop_callback_base
+  {
+   protected:
+    explicit __inplace_stoppable_base(inplace_stop_token __token)
+      : STDEXEC::__stok::__inplace_stop_callback_base(__token.__source_,
+                                                      &__inplace_stoppable_base::__execute_impl_)
+    { }
+
+    ~__inplace_stoppable_base()
+    {
+      if (__prev_ptr_ != nullptr)
+        __source_->__remove_callback_(this);
+    }
+
+    void register_stoppable()
+    {
+      STDEXEC_ASSERT(__prev_ptr_ == nullptr);
+      __register_callback_();
+    }
+
+    void deregister_stoppable()
+    {
+      if (__prev_ptr_ != nullptr)
+      {
+        __source_->__remove_callback_(this);
+        __prev_ptr_ = nullptr;
+      }
+    }
+
+   private:
+    static void __execute_impl_(STDEXEC::__stok::__inplace_stop_callback_base* cb) noexcept
+    {
+      static_cast<_Stoppable*>(cb)->on_stop_requested();
+    }
+  };
+
+  template <>
+  struct __stoppable_base_for<inplace_stop_token>
+  {
+    template <class _Stoppable>
+    using __f = __inplace_stoppable_base<_Stoppable>;
+  };
 
   // [stopcallback.inplace], class template inplace_stop_callback
   template <class _Fun>
