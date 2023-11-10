@@ -100,6 +100,8 @@ namespace stdexec {
     auto operator==(const never_stop_token&) const noexcept -> bool = default;
   };
 
+  template <class _Stoppable>
+  class __inplace_stoppable_base;
   template <class _Callback>
   class inplace_stop_callback;
 
@@ -121,6 +123,8 @@ namespace stdexec {
    private:
     friend inplace_stop_token;
     friend __stok::__inplace_stop_callback_base;
+    template <class>
+    friend class __inplace_stoppable_base;
     template <class>
     friend class inplace_stop_callback;
 
@@ -183,6 +187,8 @@ namespace stdexec {
    private:
     friend inplace_stop_source;
     template <class>
+    friend class __inplace_stoppable_base;
+    template <class>
     friend class inplace_stop_callback;
 
     explicit inplace_stop_token(const inplace_stop_source* __source) noexcept
@@ -225,6 +231,40 @@ namespace stdexec {
 
     STDEXEC_ATTRIBUTE((no_unique_address))
     _Fun __fun_;
+  };
+
+  template <class _Stoppable>
+  class __inplace_stoppable_base : __stok::__inplace_stop_callback_base {
+   protected:
+    explicit __inplace_stoppable_base(inplace_stop_token __token)
+      : __stok::__inplace_stop_callback_base(
+        __token.__source_,
+        &__inplace_stoppable_base::__execute_impl_) {}
+
+    ~__inplace_stoppable_base() {
+      if (__source_ != nullptr)
+        __source_->__remove_callback_(this);
+    }
+
+    void register_stoppable() {
+      __register_callback_();
+    }
+
+    void deregister_stoppable() {
+      if (__source_ != nullptr)
+        __source_->__remove_callback_(this);
+    }
+
+   private:
+    static void __execute_impl_(__stok::__inplace_stop_callback_base* cb) noexcept {
+      static_cast<_Stoppable*>(cb)->on_stop_requested();
+    }
+  };
+
+  template <>
+  struct __stoppable_base_for<inplace_stop_token> {
+    template <class _Stoppable>
+    using __f = __inplace_stoppable_base<_Stoppable>;
   };
 
   namespace __stok {

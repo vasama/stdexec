@@ -57,4 +57,33 @@ namespace stdexec {
     requires {
       { _Token::stop_possible() } -> __boolean_testable_;
     } && (!_Token::stop_possible());
+
+  template <class _Token, class _Stoppable>
+  class __stoppable_base_impl {
+    class __cb {
+     public:
+      explicit __cb(__stoppable_base_impl& __base)
+        : __base_(__base) {}
+      void operator()() {
+        static_cast<_Stoppable&>(__base_).on_stop_requested();
+      }
+     private:
+      __stoppable_base_impl& __base_;
+    };
+   protected:
+    explicit __stoppable_base_impl(const _Token& __token)
+      : __cb_(__token) {}
+   private:
+    stop_callback_for_t<_Token, __cb> __cb_;
+  };
+
+  template <class _Token>
+  struct __stoppable_base_for {
+    template <class _Stoppable>
+    using __f = __stoppable_base_impl<_Token, _Stoppable>;
+  };
+
+  template <class _Token, class _Stoppable>
+  using __stoppable_base_for_t = typename __stoppable_base_for<_Token>::template __f<_Stoppable>;
+
 } // namespace stdexec
