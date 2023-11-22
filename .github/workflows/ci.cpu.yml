@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - msvc-ci-test
 
 concurrency:
   group: ${{ github.workflow }}-on-${{ github.event_name }}-from-${{ github.ref_name }}
